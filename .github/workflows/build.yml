@@ -93,10 +93,12 @@ jobs:
           dst="$PACK_DEST/skillhub-plugin-$version-${{ matrix.label }}.tgz"
           cp "$src" "$dst"
 
+          # 先落盘清单：grep -q 会提前关闭管道，配合 pipefail 会让 tar 因 SIGPIPE 失败。
+          tar -tzf "$dst" > "$PACK_DEST/manifest.txt"
           for f in PLATFORM.md skillhub.json.example lib/host.js lib/client.js cordis.patch.yml; do
-            tar -tzf "$dst" | grep -qx "package/$f" || { echo "missing in $dst: $f" >&2; exit 1; }
+            grep -qx "package/$f" "$PACK_DEST/manifest.txt" || { echo "missing in $dst: $f" >&2; exit 1; }
           done
-          leaked=$(tar -tzf "$dst" | grep -E '^package/(src/|lib/tests/|node_modules/|\.env)' || true)
+          leaked=$(grep -E '^package/(src/|lib/tests/|node_modules/|\.env)' "$PACK_DEST/manifest.txt" || true)
           test -z "$leaked" || { echo "leaked: $leaked" >&2; exit 1; }
 
           node -e 'const fs=require("fs"),c=require("crypto");const f=process.argv[1];const h=c.createHash("sha256").update(fs.readFileSync(f)).digest("hex");fs.writeFileSync(f+".sha256",h+"  "+require("path").basename(f)+"\n")' "$dst"
@@ -108,6 +110,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: skillhub-plugin-${{ matrix.label }}
-          path: dist/${{ matrix.label }}/
+          path: |
+            dist/${{ matrix.label }}/*.tgz
+            dist/${{ matrix.label }}/*.sha256
           if-no-files-found: error
           retention-days: 90

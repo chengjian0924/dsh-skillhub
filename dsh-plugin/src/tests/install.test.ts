@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { withDefaults } from '../config-store.js'
 import { installSkill, installedSlugs, listInstalled, normalizeZipFiles, parseFrontmatter, parseVersion, safeRelPath, skillDir, statSkillDir, uninstallSkill } from '../install.js'
@@ -45,8 +45,8 @@ test('install fetches specified version via zip download', async () => {
 })
 
 test('skillDir stays inside skills root', () => {
-  const root = '/tmp/skills-root'
-  assert.equal(skillDir(root, 'pdf-ocr-md'), join(root, 'pdf-ocr-md'))
+  const root = join(tmpdir(), 'skills-root')
+  assert.equal(skillDir(root, 'pdf-ocr-md'), resolve(root, 'pdf-ocr-md'))
   assert.throws(() => skillDir(root, '../escape'), /无效 slug/)
 })
 
