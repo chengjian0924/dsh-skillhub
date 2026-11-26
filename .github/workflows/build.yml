@@ -78,11 +78,13 @@ jobs:
           echo "::group::${{ matrix.platform }} test output"
           grep -E '^(not ok|# Subtest|# tests|# pass|# fail|  error:|  code:|  stack:|# .*Error|.*TypeError|.*ENOENT|.*EPERM)' test-output.log | head -80 || tail -80 test-output.log
           echo "::endgroup::"
-          # Emit annotations so the failure is visible via the checks API
-          # without repo-admin log access.
-          while IFS= read -r line; do
-            echo "::error::${line}"
-          done < <(grep -E '^(not ok|  error:|  code:|# .*Error|.*TypeError|.*ENOENT|.*EPERM|.*AssertionError)' test-output.log | head -20 || true)
+          # 把尾部输出写进 step summary：checks API 无需管理员权限即可读取。
+          {
+            echo "### ${{ matrix.platform }} test failure tail"
+            echo '```text'
+            tail -60 test-output.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Pack ${{ matrix.platform }} artifact
         id: pack
