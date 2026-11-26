@@ -8,6 +8,7 @@
 
 - 可插拔鉴权扩展点：`auth.ts` 提供 `AuthProvider` 接口、提供者注册表与统一 `authHeaders()` 入口；配置新增 `authEnabled` / `authProvider` / `authOptions` 开关，默认关闭且不发起任何在线鉴权。
 - 离线私有源说明：插件只需 `apiBase` 指向内网 SkillHub API；鉴权参数由宿主配置持有，不写入 UI 覆盖文件。
+- `Build` 工作流：在 `linux-x64` 与 `win32-x64` runner 上分别构建、测试并打包，产出带平台标识的 tarball 与 SHA-256 工件。
 
 ### Removed
 
