@@ -1,24 +1,28 @@
-name: Build
+name: Build platform packages
 
-# 本插件为纯 JavaScript，无原生依赖与平台二进制，Windows/Linux 构建出的
-# tgz 内容等价。分平台构建的目的：
-#   1. 在目标平台跑完整 typecheck/test/build/pack，验证平台兼容性；
-#   2. 产出带平台标识的 artifact，便于离线分发与溯源。
-# 因此这里不伪造“平台专有包”，只做平台构建验证与分发标记。
+# 插件本体是纯 JavaScript，无原生依赖与平台二进制，Windows/Linux 的 lib/
+# 逐字节相同。分平台产出的差异只在随包的 PLATFORM.md 与 skillhub.json
+# 路径模板；在各自 runner 上跑完整测试，是为了验证平台兼容性。
 
 on:
   push:
     branches: [main]
     tags: ['v*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: Build ${{ matrix.label }}
-    runs-on: ${{ matrix.os }}
+  package:
+    name: Package (${{ matrix.platform }}, Node.js ${{ matrix.node }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     defaults:
       run:
@@ -28,10 +32,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            label: linux-x64
-          - os: windows-latest
+          - platform: windows
             label: win32-x64
+            runner: windows-latest
+            node: 22
+          - platform: linux
+            label: linux-x64
+            runner: ubuntu-latest
+            node: 22
 
     steps:
       - name: Checkout
@@ -48,7 +56,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node }}
           cache: pnpm
           cache-dependency-path: dsh-plugin/pnpm-lock.yaml
 
@@ -58,41 +66,45 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      # pnpm test 内部先执行 build，无需重复调用。
       - name: Test and build
         id: test
-        shell: bash
         run: |
           set -o pipefail
           pnpm test 2>&1 | tee test-output.log
 
       - name: Report test failures
         if: failure() && steps.test.outcome == 'failure'
-        shell: bash
         run: |
-          echo "::group::Windows test output"
-          grep -E '^(not ok|# Subtest|# tests|# pass|# fail|  error:|  code:|  stack:|# .*Error|.*TypeError|.*ENOENT|.*EPERM)' test-output.log | head -80 || cat test-output.log | tail -80
+          echo "::group::${{ matrix.platform }} test output"
+          grep -E '^(not ok|# Subtest|# tests|# pass|# fail|  error:|  code:|  stack:|# .*Error|.*TypeError|.*ENOENT|.*EPERM)' test-output.log | head -80 || tail -80 test-output.log
           echo "::endgroup::"
 
-      - name: Pack and verify
+      - name: Pack ${{ matrix.platform }} artifact
         id: pack
         env:
           PACK_DEST: ${{ github.workspace }}/dist/${{ matrix.label }}
         run: |
           set -euo pipefail
           mkdir -p "$PACK_DEST"
-          bash scripts/check-pack.sh
+          node scripts/pack-platform.mjs ${{ matrix.platform }}
+
           version=$(node -p "require('./package.json').version")
-          src="$PACK_DEST/skillhub-plugin-$version.tgz"
+          src="dist/skillhub-plugin-$version-${{ matrix.platform }}.tgz"
           dst="$PACK_DEST/skillhub-plugin-$version-${{ matrix.label }}.tgz"
-          mv "$src" "$dst"
-          # 用 Node 计算摘要，避免 Windows Git Bash 缺少 sha256sum。
+          cp "$src" "$dst"
+
+          for f in PLATFORM.md skillhub.json.example lib/host.js lib/client.js cordis.patch.yml; do
+            tar -tzf "$dst" | grep -qx "package/$f" || { echo "missing in $dst: $f" >&2; exit 1; }
+          done
+          leaked=$(tar -tzf "$dst" | grep -E '^package/(src/|lib/tests/|node_modules/|\.env)' || true)
+          test -z "$leaked" || { echo "leaked: $leaked" >&2; exit 1; }
+
           node -e 'const fs=require("fs"),c=require("crypto");const f=process.argv[1];const h=c.createHash("sha256").update(fs.readFileSync(f)).digest("hex");fs.writeFileSync(f+".sha256",h+"  "+require("path").basename(f)+"\n")' "$dst"
           echo "--- artifact ---"
           cat "$dst.sha256"
           echo "artifact=$dst" >> "$GITHUB_OUTPUT"
 
-      - name: Upload artifact
+      - name: Upload ${{ matrix.platform }} artifact
         uses: actions/upload-artifact@v4
         with:
           name: skillhub-plugin-${{ matrix.label }}

@@ -24,7 +24,9 @@
     "!lib/tests",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "PLATFORM.md",
+    "skillhub.json.example"
   ],
   "keywords": [
     "dsh",

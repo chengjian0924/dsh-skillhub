@@ -1,0 +1,11 @@
+{
+  "apiBase": "http://skillhub.internal/api",
+  "webBase": "http://skillhub.internal",
+  "skillsDir": "C:\\Users\\<用户名>\\.dsh\\skills",
+  "profile": "desktop",
+  "timeoutMs": 20000,
+  "maxResults": 12,
+  "sortBy": "score",
+  "authEnabled": false,
+  "authProvider": "none"
+}
