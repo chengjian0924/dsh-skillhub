@@ -9,6 +9,11 @@ updates:
     groups:
       development-dependencies:
         dependency-type: development
+    # react-dom must stay on React 18: peerDependencies pins react ^18.2.0,
+    # and React 19's react-dom requires React 19 internals (CI test crash).
+    ignore:
+      - dependency-name: react-dom
+        update-types: ['version-update:semver-major']
     labels:
       - dependencies
     commit-message:
