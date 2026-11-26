@@ -60,7 +60,19 @@ jobs:
 
       # pnpm test 内部先执行 build，无需重复调用。
       - name: Test and build
-        run: pnpm test
+        id: test
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee test-output.log
+
+      - name: Report test failures
+        if: failure() && steps.test.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::group::Windows test output"
+          grep -E '^(not ok|# Subtest|# tests|# pass|# fail|  error:|  code:|  stack:|# .*Error|.*TypeError|.*ENOENT|.*EPERM)' test-output.log | head -80 || cat test-output.log | tail -80
+          echo "::endgroup::"
 
       - name: Pack and verify
         id: pack
