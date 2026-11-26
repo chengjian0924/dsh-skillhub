@@ -90,28 +90,9 @@ jobs:
         id: pack
         env:
           PACK_DEST: ${{ github.workspace }}/dist/${{ matrix.label }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$PACK_DEST"
-          node scripts/pack-platform.mjs ${{ matrix.platform }}
-
-          version=$(node -p "require('./package.json').version")
-          src="dist/skillhub-plugin-$version-${{ matrix.platform }}.tgz"
-          dst="$PACK_DEST/skillhub-plugin-$version-${{ matrix.label }}.tgz"
-          cp "$src" "$dst"
-
-          # 先落盘清单：grep -q 会提前关闭管道，配合 pipefail 会让 tar 因 SIGPIPE 失败。
-          tar -tzf "$dst" > "$PACK_DEST/manifest.txt"
-          for f in PLATFORM.md skillhub.json.example lib/host.js lib/client.js cordis.patch.yml; do
-            grep -qx "package/$f" "$PACK_DEST/manifest.txt" || { echo "missing in $dst: $f" >&2; exit 1; }
-          done
-          leaked=$(grep -E '^package/(src/|lib/tests/|node_modules/|\.env)' "$PACK_DEST/manifest.txt" || true)
-          test -z "$leaked" || { echo "leaked: $leaked" >&2; exit 1; }
-
-          node -e 'const fs=require("fs"),c=require("crypto");const f=process.argv[1];const h=c.createHash("sha256").update(fs.readFileSync(f)).digest("hex");fs.writeFileSync(f+".sha256",h+"  "+require("path").basename(f)+"\n")' "$dst"
-          echo "--- artifact ---"
-          cat "$dst.sha256"
-          echo "artifact=$dst" >> "$GITHUB_OUTPUT"
+          PLATFORM: ${{ matrix.platform }}
+          LABEL: ${{ matrix.label }}
+        run: node scripts/verify-platform-pack.mjs
 
       - name: Upload ${{ matrix.platform }} artifact
         uses: actions/upload-artifact@v4
