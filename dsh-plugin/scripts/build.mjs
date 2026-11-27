@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Cross-platform replacement for the shell build script.
-// The old "rm -rf lib && tsc && cp ..." failed on Windows runners because
-// rm/cp are not native cmd.exe commands regardless of the action shell.
+// Cross-platform build: the shell form "rm -rf lib && tsc && cp ..." fails on
+// Windows because npm lifecycle scripts run through cmd.exe regardless of the
+// action-level shell. Pure Node file operations keep every platform identical.
 import { spawnSync } from 'node:child_process'
 import { cpSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -12,9 +12,11 @@ const lib = join(root, 'lib')
 
 rmSync(lib, { recursive: true, force: true })
 
-const tsc = spawnSync(process.execPath, [
-  join(root, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', 'tsconfig.json',
-], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' })
+const tscBin = join(root, 'node_modules', 'typescript', 'bin', 'tsc')
+const tsc = spawnSync(process.execPath, [tscBin, '-p', 'tsconfig.json'], {
+  cwd: root,
+  stdio: 'inherit',
+})
 if (tsc.error) throw tsc.error
 if (tsc.status !== 0) process.exit(tsc.status || 1)
 

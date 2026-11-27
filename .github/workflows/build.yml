@@ -1,8 +1,9 @@
-name: Build platform packages
+name: Build
 
-# 插件本体是纯 JavaScript，无原生依赖与平台二进制，Windows/Linux 的 lib/
-# 逐字节相同。分平台产出的差异只在随包的 PLATFORM.md 与 skillhub.json
-# 路径模板；在各自 runner 上跑完整测试，是为了验证平台兼容性。
+# 插件是纯 JavaScript，无原生依赖与平台二进制，Windows/Linux 产出的 lib/
+# 逐字节相同。这里不伪造“平台专有包”，而是在两个目标平台的 runner 上各跑
+# 一遍 typecheck / test / build / pack，验证工具链兼容性，并产出带平台标签
+# 与 SHA-256 的 artifact，便于离线分发与溯源。
 
 on:
   push:
@@ -20,9 +21,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  package:
-    name: Package (${{ matrix.platform }}, Node.js ${{ matrix.node }})
-    runs-on: ${{ matrix.runner }}
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:
       run:
@@ -32,14 +33,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: windows
-            label: win32-x64
-            runner: windows-latest
-            node: 22
-          - platform: linux
+          - os: ubuntu-latest
             label: linux-x64
-            runner: ubuntu-latest
-            node: 22
+          - os: windows-latest
+            label: win32-x64
 
     steps:
       - name: Checkout
@@ -56,7 +53,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '22'
           cache: pnpm
           cache-dependency-path: dsh-plugin/pnpm-lock.yaml
 
@@ -66,6 +63,7 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
+      # pnpm test 内部先执行 build（跨平台 Node 脚本），无需重复调用。
       - name: Test and build
         id: test
         run: |
@@ -75,26 +73,24 @@ jobs:
       - name: Report test failures
         if: failure() && steps.test.outcome == 'failure'
         run: |
-          echo "::group::${{ matrix.platform }} test output"
+          echo "::group::${{ matrix.label }} test output"
           grep -E '^(not ok|# Subtest|# tests|# pass|# fail|  error:|  code:|  stack:|# .*Error|.*TypeError|.*ENOENT|.*EPERM)' test-output.log | head -80 || tail -80 test-output.log
           echo "::endgroup::"
-          # 把尾部输出写进 step summary：checks API 无需管理员权限即可读取。
           {
-            echo "### ${{ matrix.platform }} test failure tail"
+            echo "### ${{ matrix.label }} test failure tail"
             echo '```text'
             tail -60 test-output.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Pack ${{ matrix.platform }} artifact
+      - name: Pack ${{ matrix.label }} artifact
         id: pack
         env:
           PACK_DEST: ${{ github.workspace }}/dist/${{ matrix.label }}
-          PLATFORM: ${{ matrix.platform }}
-          LABEL: ${{ matrix.label }}
-        run: node scripts/verify-platform-pack.mjs
+          PLATFORM_LABEL: ${{ matrix.label }}
+        run: node scripts/pack-artifact.mjs
 
-      - name: Upload ${{ matrix.platform }} artifact
+      - name: Upload ${{ matrix.label }} artifact
         uses: actions/upload-artifact@v4
         with:
           name: skillhub-plugin-${{ matrix.label }}

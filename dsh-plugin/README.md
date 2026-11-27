@@ -43,7 +43,7 @@ dsh plugin --profile desktop add /绝对路径/skillhub-plugin-0.2.18.tgz
 
 装完重启 Harness（Web 还需强制刷新）。不要从 git 源安装：源码安装会触发 `prepare` 构建脚本，离线环境不具备条件。npm 上的无前缀名 `skillhub` 是另一个项目，请用 `skillhub-plugin`。
 
-**平台构建产物**：`.github/workflows/build.yml` 在 `linux-x64` 与 `win32-x64` 两个 runner 上分别执行 typecheck、测试、构建和打包，产出 `skillhub-plugin-<版本>-<平台>.tgz` 及对应 `.sha256`，在 Actions 运行页的 Artifacts 下载。插件是纯 JavaScript、无原生依赖，两个平台的 `lib/` 逐字节相同；差异只在随包的 `PLATFORM.md`（平台专属安装说明）与 `skillhub.json.example`（`skillsDir` 路径模板）。分平台构建用于验证目标平台工具链并让分发包可追溯，不是提供不同的二进制。离线分发时按目标系统取包，并校验 SHA-256。当前不产出 ARM 专用包：纯 JS 产物在 ARM 上同样可运行。
+**平台构建产物**：`.github/workflows/build.yml` 在 `linux-x64` 与 `win32-x64` 两个 runner 上分别执行 typecheck、测试、构建和打包，产出 `skillhub-plugin-<版本>-<平台>.tgz` 及对应 `.sha256`，在 Actions 运行页的 Artifacts 下载。插件是纯 JavaScript、无原生依赖，两个平台的 tarball 内容等价；分平台构建用于验证目标平台工具链并让分发包可追溯，不是提供不同的二进制。离线分发时按目标系统取包，并校验 SHA-256。当前不产出 ARM 专用包：纯 JS 产物在 ARM 上同样可运行。
 
 本地开发：
 
